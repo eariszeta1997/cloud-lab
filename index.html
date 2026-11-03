@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vincenzo Sansone | 3D Interactive Business Card</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons 6.5.1 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Google Fonts: Inter & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            warm: {
+              base: '#131118',
+              surface: '#1b1722',
+              card: '#221d2c',
+              border: '#392e47',
+              amber: '#f59e0b',
+              gold: '#fbbf24',
+              coral: '#f97316'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Fira Code', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --cube-w: 480px;
+      --cube-h: 560px;
+      --cube-depth: 240px;
+    }
+
+    @media (max-width: 640px) {
+      :root {
+        --cube-w: 350px;
+        --cube-h: 530px;
+        --cube-depth: 175px;
+      }
+    }
+
+    body {
+      background-color: #121017;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      touch-action: pan-y;
+    }
+
+    /* 3D Scene Viewport */
+    .scene-viewport {
+      perspective: 1400px;
+      perspective-origin: 50% 50%;
+    }
+
+    .cube-3d {
+      width: var(--cube-w);
+      height: var(--cube-h);
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.65s cubic-bezier(0.2, 0.85, 0.35, 1.15);
+      will-change: transform;
+    }
+
+    .cube-3d.dragging {
+      transition: none;
+      cursor: grabbing !important;
+    }
+
+    /* Warm Glassmorphism Cube Faces */
+    .cube-face {
+      position: absolute;
+      width: var(--cube-w);
+      height: var(--cube-h);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 1.6rem;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      background: rgba(26, 22, 34, 0.94);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 35px -5px rgba(245, 158, 11, 0.14);
+      user-select: none;
+    }
+
+    /* Spatial coordinates */
+    .face-front  { transform: rotateY(0deg) translateZ(var(--cube-depth)); }
+    .face-right  { transform: rotateY(90deg) translateZ(var(--cube-depth)); }
+    .face-back   { transform: rotateY(180deg) translateZ(var(--cube-depth)); }
+    .face-left   { transform: rotateY(-90deg) translateZ(var(--cube-depth)); }
+
+    /* Custom Slim Scrollbars */
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(27, 23, 34, 0.4);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(245, 158, 11, 0.4);
+      border-radius: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(245, 158, 11, 0.7);
+    }
+
+    /* Memory Card 3D Flip Styles */
+    .memory-card {
+      perspective: 700px;
+      cursor: pointer;
+    }
+    .memory-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    .memory-card.flipped .memory-card-inner {
+      transform: rotateY(180deg);
+    }
+    .memory-front, .memory-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 0.75rem;
+    }
+    .memory-front {
+      transform: rotateY(180deg);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Ambient Warm Dynamic Lighting -->
+  <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+    <div class="absolute -top-36 -left-36 w-[500px] h-[500px] bg-amber-600/12 rounded-full blur-[140px]"></div>
+    <div class="absolute top-1/3 -right-36 w-[480px] h-[480px] bg-orange-600/12 rounded-full blur-[140px]"></div>
+    <div class="absolute -bottom-24 left-1/3 w-[450px] h-[450px] bg-amber-700/10 rounded-full blur-[130px]"></div>
+    <div class="absolute inset-0 bg-[radial-gradient(#2a2236_1px,transparent_1px)] [background-size:32px_32px] opacity-35"></div>
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="py-3 px-6 border-b border-warm-border/80 bg-warm-base/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-base shadow-lg shadow-amber-500/20">
+          VS
+        </div>
+        <div>
+          <div class="font-extrabold text-sm sm:text-base leading-tight tracking-wide text-white">Vincenzo Sansone</div>
+          <div class="text-[11px] font-semibold text-amber-400 font-mono flex items-center gap-1.5">
+            <span>Ingegneria Informatica • Cloud & DevOps</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span>Disponibile per Opportunità</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 3D Interactive Stage -->
+  <main class="flex-1 flex flex-col items-center justify-center p-3 sm:p-6">
+    
+    <!-- Drag Instruction Bar -->
+    <div class="text-center mb-4 sm:mb-6 select-none">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-warm-surface/90 border border-warm-border text-slate-300 text-xs shadow-inner">
+        <i class="fa-solid fa-hand-pointer text-amber-400 animate-bounce text-xs"></i>
+        <span>Trascina per ruotare liberamente o usa i pulsanti sotto</span>
+      </div>
+    </div>
+
+    <!-- The 3D Scene Viewport -->
+    <div id="sceneContainer" class="scene-viewport cursor-grab p-2">
+      <div id="cube3D" class="cube-3d">
+        
+        <!-- ==============================================
+             FACE 1: FRONT (PROFILO & BIGLIETTO DA VISITA)
+             ============================================== -->
+        <div class="cube-face face-front p-5 sm:p-7 flex flex-col justify-between overflow-y-auto custom-scroll">
+          <div class="space-y-4">
+            <!-- Top bar -->
+            <div class="flex items-center justify-between pb-3 border-b border-warm-border/80">
+              <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1.5 font-mono">
+                <i class="fa-solid fa-id-card"></i> 01 // Biglietto da Visita
+              </span>
+              <span class="text-[11px] font-mono text-slate-300 bg-warm-surface px-2.5 py-0.5 rounded-lg border border-warm-border">
+                <i class="fa-solid fa-location-dot text-rose-400 mr-1"></i>Portici (NA)
+              </span>
+            </div>
+
+            <!-- Header Info -->
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                Vincenzo Sansone
+              </h1>
+              <div class="text-xs sm:text-sm font-semibold text-amber-400 mt-1 flex flex-wrap items-center gap-2">
+                <span>Studente in Ingegneria Informatica</span>
+                <span class="text-slate-500">•</span>
+                <span class="text-orange-400">Junior Cloud Specialist</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-0.5 font-mono">
+                Corso di Laurea L-8 — Ingegneria Informatica
+              </div>
+            </div>
+
+            <!-- Bio Umanizzata & Spontanea -->
+            <div class="bg-warm-surface/85 p-4 rounded-xl border border-warm-border text-xs text-slate-300 leading-relaxed space-y-2.5">
+              <p>
+                Studio Ingegneria Informatica e coltivo con costanza la passione per l'ecosistema Cloud e la cultura DevOps. Mi piace capire a fondo come funzionano le cose sotto il cofano: la virtualizzazione, i protocolli di rete, la containerizzazione e i meccanismi che rendono un'architettura automatica e affidabile.
+              </p>
+              <p class="text-slate-400 text-[11px]">
+                Ho completato il percorso intensivo di 580 ore con <span class="text-amber-300 font-medium">Generation Italy</span> (partner AWS) e ho conseguito la certificazione AWS Cloud Practitioner, affiancando lo studio universitario a progetti pratici di automazione e deploy.
+              </p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <span class="px-2 py-0.5 rounded-md bg-warm-card border border-amber-600/40 text-amber-300 text-[10px] font-mono">Ingegneria Informatica</span>
+                <span class="px-2 py-0.5 rounded-md bg-warm-card border border-orange-600/40 text-orange-300 text-[10px] font-mono">Cloud</span>
+                <span class="px-2 py-0.5 rounded-md bg-warm-card border border-amber-600/40 text-amber-200 text-[10px] font-mono">DevOps</span>
+                <span class="px-2 py-0.5 rounded-md bg-warm-card border border-warm-border text-slate-300 text-[10px] font-mono">Linux</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Contacts & Links (Spazioso e mai tagliato) -->
+          <div class="space-y-2.5 pt-4 mt-2 border-t border-warm-border/60">
+            <a href="mailto:vincenzosansone097@gmail.com" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:brightness-110 transition">
+              <i class="fa-solid fa-envelope text-sm"></i>
+              <span>vincenzosansone097@gmail.com</span>
+            </a>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="copyToClipboard('https://github.com/vincenzo-sansone/cloud-lab', 'Link repository copiato!')" class="py-2.5 px-3 rounded-xl bg-warm-surface hover:bg-warm-card border border-warm-border text-xs font-semibold text-slate-200 flex items-center justify-center gap-2 transition">
+                <i class="fa-brands fa-github text-sm text-amber-400"></i>
+                <span>GitHub Lab</span>
+              </button>
+              <button onclick="copyToClipboard('vincenzosansone097@gmail.com', 'Email copiata con successo!')" class="py-2.5 px-3 rounded-xl bg-warm-surface hover:bg-warm-card border border-warm-border text-xs font-semibold text-slate-200 flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-copy text-sm text-orange-400"></i>
+                <span>Copia Email</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             FACE 2: RIGHT (CLOUD LAB - ROADMAP MINIMAL)
+             ============================================== -->
+        <div class="cube-face face-right p-5 sm:p-7 flex flex-col justify-between overflow-y-auto custom-scroll">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-warm-border/80">
+              <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1.5 font-mono">
+                <i class="fa-solid fa-route"></i> 02 // Percorso del Progetto
+              </span>
+              <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/70 px-2.5 py-0.5 rounded-md font-semibold">
+                8 Passi Completi
+              </span>
+            </div>
+
+            <div class="mt-3">
+              <h3 class="text-sm sm:text-base font-bold text-white leading-tight">
+                Roadmap del Laboratorio Cloud
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-1">
+                La sequenza pratica affrontata per ideare, automatizzare e rilasciare l'infrastruttura:
+              </p>
+            </div>
+          </div>
+
+          <!-- Minimal Vertical Roadmap (Tutti gli 8 step visibili e spaziosi) -->
+          <div class="my-3 pr-1 py-1">
+            <div class="relative pl-6 space-y-4 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-amber-400 via-orange-500 to-amber-600">
+              
+              <!-- Step 1 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-amber-400 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>1. Pagina Web</span>
+                  <span class="text-[10px] font-mono text-amber-400/90 font-normal">index.html</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Struttura HTML statica essenziale di presentazione.</p>
+              </div>
+
+              <!-- Step 2 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-amber-400 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>2. Versionamento</span>
+                  <span class="text-[10px] font-mono text-amber-400/90 font-normal">Git & GitHub</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Repository, commit atomici e tracciamento continuo.</p>
+              </div>
+
+              <!-- Step 3 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-orange-400 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>3. Containerizzazione</span>
+                  <span class="text-[10px] font-mono text-orange-400/90 font-normal">Dockerfile + Nginx</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Impacchettamento in un'immagine leggera ed eseguibile ovunque.</p>
+              </div>
+
+              <!-- Step 4 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-orange-400 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>4. Configurazione Locale</span>
+                  <span class="text-[10px] font-mono text-orange-400/90 font-normal">Docker Compose</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Avvio rapido del container e port-mapping con un solo comando.</p>
+              </div>
+
+              <!-- Step 5 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>5. Automazione CI</span>
+                  <span class="text-[10px] font-mono text-amber-400/90 font-normal">GitHub Actions</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Pipeline di convalida e controllo automatico a ogni push.</p>
+              </div>
+
+              <!-- Step 6 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>6. Pubblicazione Online</span>
+                  <span class="text-[10px] font-mono text-amber-400/90 font-normal">GitHub Pages</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Rilascio sul web accessibile pubblicamente a zero costi.</p>
+              </div>
+
+              <!-- Step 7 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-orange-500 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>7. Cluster Locale</span>
+                  <span class="text-[10px] font-mono text-orange-400/90 font-normal">Kubernetes</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Deployment, service e verifica pratica dell'auto-healing dei pod.</p>
+              </div>
+
+              <!-- Step 8 -->
+              <div class="relative group">
+                <span class="absolute -left-6 top-1 w-3 h-3 rounded-full bg-amber-400 ring-4 ring-warm-surface shadow-sm"></span>
+                <div class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span>8. Infra as Code</span>
+                  <span class="text-[10px] font-mono text-amber-400/90 font-normal">Terraform</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-snug">Gestione e provisioning del container come codice (IaC).</p>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Bottom Note -->
+          <div class="pt-3 border-t border-warm-border/70 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+            <span>Ambiente: Locale & Minikube</span>
+            <span class="text-amber-400 font-semibold">Zero Cost Architecture</span>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             FACE 3: LEFT (CERTIFICAZIONI & TECH STACK)
+             ============================================== -->
+        <div class="cube-face face-left p-5 sm:p-7 flex flex-col justify-between overflow-y-auto custom-scroll">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-warm-border/80">
+              <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1.5 font-mono">
+                <i class="fa-solid fa-award"></i> 03 // Certificazioni & Badge
+              </span>
+              <span class="text-[10px] font-mono text-amber-300 bg-warm-surface px-2.5 py-0.5 rounded border border-warm-border">Verificate</span>
+            </div>
+
+            <!-- Badges Showcase in SVG -->
+            <div class="grid grid-cols-2 gap-3">
+              
+              <!-- 1. AWS Certified Cloud Practitioner Badge -->
+              <div class="p-3 rounded-xl bg-warm-surface/90 border border-warm-border flex flex-col items-center text-center shadow-md">
+                <div class="w-12 h-12 flex items-center justify-center mb-1.5 drop-shadow-[0_2px_8px_rgba(245,158,11,0.3)]">
+                  <svg viewBox="0 0 100 115" class="w-11 h-11">
+                    <polygon points="50,5 92,28 92,86 50,110 8,86 8,28" fill="#1e1826" stroke="#f59e0b" stroke-width="4.5"/>
+                    <text x="50" y="45" fill="#f59e0b" font-size="13" font-weight="900" text-anchor="middle" font-family="'Fira Code', monospace">aws</text>
+                    <text x="50" y="63" fill="#ffffff" font-size="10.5" font-weight="800" text-anchor="middle" font-family="Inter, sans-serif">Cloud</text>
+                    <text x="50" y="77" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" font-family="Inter, sans-serif">Practitioner</text>
+                    <line x1="24" y1="84" x2="76" y2="84" stroke="#f59e0b" stroke-width="1.5" />
+                    <text x="50" y="96" fill="#fbbf24" font-size="7" font-weight="800" text-anchor="middle" letter-spacing="1">FOUNDATIONAL</text>
+                  </svg>
+                </div>
+                <div class="text-[11px] font-bold text-slate-100 leading-tight">AWS Cloud</div>
+                <div class="text-[9px] text-amber-400 font-semibold font-mono">Certified Practitioner</div>
+              </div>
+
+              <!-- 2. Google AI Professional Certificate Badge -->
+              <div class="p-3 rounded-xl bg-warm-surface/90 border border-warm-border flex flex-col items-center text-center shadow-md">
+                <div class="w-12 h-12 flex items-center justify-center mb-1.5 drop-shadow-[0_2px_8px_rgba(249,115,22,0.3)]">
+                  <svg viewBox="0 0 100 100" class="w-11 h-11">
+                    <path d="M 50 4 C 74 4 92 22 92 46 C 92 70 72 96 50 96 C 28 96 8 70 8 46 C 8 22 26 4 50 4 Z" fill="#ffffff" />
+                    <circle cx="48" cy="48" r="38" fill="#1b1722" />
+                    <text x="48" y="44" fill="#ffffff" font-size="9" font-weight="700" text-anchor="middle" font-family="Inter, sans-serif">AI Professional</text>
+                    <text x="48" y="58" fill="#ffffff" font-size="9" font-weight="700" text-anchor="middle" font-family="Inter, sans-serif">Certificate</text>
+                    <circle cx="76" cy="22" r="12" fill="#ffffff" />
+                    <text x="76" y="27" fill="#ea4335" font-size="14" font-weight="900" text-anchor="middle" font-family="Inter, sans-serif">G</text>
+                  </svg>
+                </div>
+                <div class="text-[11px] font-bold text-slate-100 leading-tight">Google AI</div>
+                <div class="text-[9px] text-orange-400 font-semibold font-mono">Professional Cert.</div>
+              </div>
+            </div>
+
+            <!-- Generation Italy Course Block -->
+            <div class="p-3 rounded-xl bg-warm-surface/85 border border-warm-border flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-amber-950/80 border border-amber-600/50 flex items-center justify-center text-amber-300 text-sm shrink-0">
+                <i class="fa-solid fa-graduation-cap"></i>
+              </div>
+              <div class="text-[11px] leading-tight">
+                <div class="font-bold text-slate-200">Junior Cloud Specialist (580 ore)</div>
+                <div class="text-slate-400 mt-0.5">Generation Italy • Partner AWS re/Start</div>
+              </div>
+            </div>
+
+            <!-- Categorized Tech Stack Grid with warm badges -->
+            <div class="space-y-2 pt-1">
+              <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Tecnologie & Strumenti:</div>
+              
+              <div class="space-y-1.5 text-[10px] font-mono">
+                <!-- Cloud & IaC -->
+                <div class="flex items-center gap-2">
+                  <span class="text-amber-500/80 w-16 text-[9px] uppercase font-bold">Cloud/IaC:</span>
+                  <div class="flex flex-wrap gap-1">
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-amber-300">AWS</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-orange-300">Terraform</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-amber-200">Docker</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-yellow-300">K8s</span>
+                  </div>
+                </div>
+
+                <!-- Systems & Web -->
+                <div class="flex items-center gap-2">
+                  <span class="text-amber-500/80 w-16 text-[9px] uppercase font-bold">Sys/Web:</span>
+                  <div class="flex flex-wrap gap-1">
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-orange-200">Linux</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-slate-300">Bash</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-amber-300">Nginx</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-orange-300">Git</span>
+                  </div>
+                </div>
+
+                <!-- Dev & CI -->
+                <div class="flex items-center gap-2">
+                  <span class="text-amber-500/80 w-16 text-[9px] uppercase font-bold">Dev/CI:</span>
+                  <div class="flex flex-wrap gap-1">
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-amber-300">Python</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-yellow-200">FastAPI</span>
+                    <span class="px-2 py-0.5 rounded bg-warm-surface border border-warm-border text-orange-300">Actions CI</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-warm-border/70 flex items-center justify-between text-[10px] text-slate-400 font-mono mt-3">
+            <span>Certificazioni & Badge</span>
+            <span class="text-amber-400 font-semibold">Ingegneria Informatica</span>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             FACE 4: BACK (MINI-GAME: DEVOPS TECH MATCH)
+             ============================================== -->
+        <div class="cube-face face-back p-4 sm:p-6 flex flex-col justify-between overflow-y-auto custom-scroll relative">
+          
+          <!-- Top game bar -->
+          <div>
+            <div class="flex items-center justify-between pb-2.5 border-b border-warm-border/80">
+              <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1.5 font-mono">
+                <i class="fa-solid fa-gamepad text-orange-400"></i> 04 // Memory Match
+              </span>
+              <div class="flex items-center gap-2">
+                <span id="gameMoves" class="text-[10px] font-mono text-slate-300 bg-warm-surface px-2.5 py-0.5 rounded border border-warm-border">
+                  Mosse: 0
+                </span>
+                <span id="gamePairs" class="text-[10px] font-mono text-amber-400 font-bold bg-amber-950/70 px-2.5 py-0.5 rounded border border-amber-600/50">
+                  0/6 Coppie
+                </span>
+              </div>
+            </div>
+
+            <div class="mt-3 text-center">
+              <h3 class="text-xs sm:text-sm font-bold text-white">Trova le 6 Tecnologie del Lab</h3>
+              <p class="text-[10px] text-slate-400">Abbina le coppie degli strumenti utilizzati nel progetto!</p>
+            </div>
+
+            <!-- Memory Grid: 4 columns x 3 rows = 12 cards with warm styling -->
+            <div id="memoryGrid" class="grid grid-cols-4 gap-2.5 mt-3">
+              <!-- Dynamically populated via JS -->
+            </div>
+          </div>
+
+          <!-- Bottom bar & reset -->
+          <div class="mt-3 pt-2 border-t border-warm-border/60 flex items-center justify-between gap-2">
+            <span class="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+              <i class="fa-solid fa-lightbulb text-amber-400"></i> Trova tutte le 6 coppie
+            </span>
+            <button onclick="initMemoryGame()" class="py-1.5 px-3 rounded-lg bg-warm-surface hover:bg-warm-card border border-warm-border text-[11px] font-medium text-slate-200 transition flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-rotate-right text-amber-400"></i>
+              <span>Riavvia</span>
+            </button>
+          </div>
+
+          <!-- Victory Overlay -->
+          <div id="victoryOverlay" class="absolute inset-0 bg-warm-base/95 backdrop-blur-md z-20 flex flex-col items-center justify-center p-6 text-center transition-all duration-300 opacity-0 pointer-events-none">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center text-slate-950 text-2xl font-black mb-3 shadow-lg shadow-amber-500/30">
+              <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h4 class="text-base sm:text-lg font-black text-white">Ottimo Lavoro!</h4>
+            <p id="victoryDetails" class="text-xs text-slate-300 mt-1 max-w-xs leading-relaxed">
+              Hai abbinato con successo tutte le tecnologie del Cloud Lab!
+            </p>
+            <div class="mt-4 flex gap-2">
+              <button onclick="initMemoryGame()" class="py-2 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs shadow-md transition hover:brightness-110">
+                Gioca di Nuovo
+              </button>
+              <button onclick="rotateToFace('right')" class="py-2 px-3.5 rounded-xl bg-warm-surface border border-warm-border text-slate-300 font-medium text-xs hover:bg-warm-card transition">
+                Vedi la Roadmap
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Quick Navigation Buttons (Below Cube) -->
+    <div class="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-2 sm:gap-3 z-30">
+      <button onclick="rotateToFace('front')" id="nav-front" class="nav-cube-btn active px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500 text-slate-950 border border-amber-400 shadow-md shadow-amber-500/20 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-user"></i>
+        <span>1. Profilo</span>
+      </button>
+
+      <button onclick="rotateToFace('right')" id="nav-right" class="nav-cube-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-warm-surface/90 hover:bg-warm-card text-slate-300 border border-warm-border transition flex items-center gap-1.5">
+        <i class="fa-solid fa-route text-amber-400"></i>
+        <span>2. Roadmap Lab</span>
+      </button>
+
+      <button onclick="rotateToFace('left')" id="nav-left" class="nav-cube-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-warm-surface/90 hover:bg-warm-card text-slate-300 border border-warm-border transition flex items-center gap-1.5">
+        <i class="fa-solid fa-award text-orange-400"></i>
+        <span>3. Certificazioni</span>
+      </button>
+
+      <button onclick="rotateToFace('back')" id="nav-back" class="nav-cube-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-warm-surface/90 hover:bg-warm-card text-slate-300 border border-warm-border transition flex items-center gap-1.5">
+        <i class="fa-solid fa-puzzle-piece text-amber-400"></i>
+        <span>4. Memory Game</span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-4 right-4 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-warm-surface/95 border border-amber-500/50 text-amber-200 text-xs px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
+    <i class="fa-solid fa-circle-check text-amber-400"></i>
+    <span id="toastMsg">Operazione completata!</span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="py-3 text-center border-t border-warm-border/80 bg-warm-base/80 text-[11px] text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1">
+      <div>© 2026 Vincenzo Sansone • Ingegneria Informatica & Junior Cloud Specialist</div>
+      <div class="font-mono text-amber-400/90">Docker • Kubernetes • Terraform • AWS</div>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT: Cube Rotation & Memory Game -->
+  <script>
+    // --- 1. 3D CUBE LOGIC & DRAG INTERACTION ---
+    const cube = document.getElementById('cube3D');
+    const sceneContainer = document.getElementById('sceneContainer');
+    
+    let rotX = -8;
+    let rotY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let prevRotX = rotX;
+    let prevRotY = rotY;
+
+    function renderRotation() {
+      cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+    }
+    renderRotation();
+
+    // Mouse Controls
+    sceneContainer.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button, a, .memory-card')) return;
+      isDragging = true;
+      cube.classList.add('dragging');
+      startX = e.clientX;
+      startY = e.clientY;
+      prevRotX = rotX;
+      prevRotY = rotY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      rotY = prevRotY + deltaX * 0.45;
+      rotX = Math.max(-40, Math.min(40, prevRotX - deltaY * 0.45));
+      renderRotation();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        cube.classList.remove('dragging');
+        updateNavStateFromAngle();
+      }
+    });
+
+    // Touch Controls
+    sceneContainer.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button, a, .memory-card')) return;
+      isDragging = true;
+      cube.classList.add('dragging');
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      prevRotX = rotX;
+      prevRotY = rotY;
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.touches[0].clientX - startX;
+      const deltaY = e.touches[0].clientY - startY;
+      rotY = prevRotY + deltaX * 0.55;
+      rotX = Math.max(-40, Math.min(40, prevRotX - deltaY * 0.55));
+      renderRotation();
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => {
+      if (isDragging) {
+        isDragging = false;
+        cube.classList.remove('dragging');
+        updateNavStateFromAngle();
+      }
+    });
+
+    // Preset Faces
+    const faceRotationAngles = {
+      front: 0,
+      right: -90,
+      back: -180,
+      left: 90
+    };
+
+    function rotateToFace(face) {
+      rotX = -7;
+      rotY = faceRotationAngles[face];
+      prevRotX = rotX;
+      prevRotY = rotY;
+      cube.classList.remove('dragging');
+      renderRotation();
+      setActiveNav(face);
+    }
+
+    function setActiveNav(face) {
+      document.querySelectorAll('.nav-cube-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-amber-500', 'text-slate-950', 'border-amber-400', 'shadow-md', 'shadow-amber-500/20');
+        btn.classList.add('bg-warm-surface/90', 'text-slate-300', 'border-warm-border');
+      });
+      const activeEl = document.getElementById(`nav-${face}`);
+      if (activeEl) {
+        activeEl.classList.add('active', 'bg-amber-500', 'text-slate-950', 'border-amber-400', 'shadow-md', 'shadow-amber-500/20');
+        activeEl.classList.remove('bg-warm-surface/90', 'text-slate-300', 'border-warm-border');
+      }
+    }
+
+    function updateNavStateFromAngle() {
+      let normalized = ((rotY % 360) + 360) % 360;
+      if (normalized >= 315 || normalized < 45) setActiveNav('front');
+      else if (normalized >= 45 && normalized < 135) setActiveNav('left');
+      else if (normalized >= 135 && normalized < 225) setActiveNav('back');
+      else if (normalized >= 225 && normalized < 315) setActiveNav('right');
+    }
+
+    // --- 2. MEMORY CARD GAME (WARM STYLING) ---
+    const techItems = [
+      { id: 'docker', name: 'Docker', icon: 'fa-brands fa-docker', color: 'text-amber-400' },
+      { id: 'k8s', name: 'Kubernetes', icon: 'fa-solid fa-dharmachakra', color: 'text-orange-400' },
+      { id: 'terraform', name: 'Terraform', icon: 'fa-solid fa-shapes', color: 'text-amber-300' },
+      { id: 'actions', name: 'Actions CI', icon: 'fa-solid fa-gears', color: 'text-orange-300' },
+      { id: 'nginx', name: 'Nginx', icon: 'fa-solid fa-server', color: 'text-amber-200' },
+      { id: 'git', name: 'Git', icon: 'fa-brands fa-git-alt', color: 'text-orange-400' }
+    ];
+
+    let memoryCards = [];
+    let flippedCards = [];
+    let matchedPairs = 0;
+    let movesCount = 0;
+    let isBoardLocked = false;
+
+    function initMemoryGame() {
+      matchedPairs = 0;
+      movesCount = 0;
+      flippedCards = [];
+      isBoardLocked = false;
+
+      document.getElementById('gameMoves').textContent = `Mosse: ${movesCount}`;
+      document.getElementById('gamePairs').textContent = `0/6 Coppie`;
+
+      const victoryEl = document.getElementById('victoryOverlay');
+      victoryEl.classList.add('opacity-0', 'pointer-events-none');
+
+      // Duplicate and shuffle
+      const deck = [...techItems, ...techItems]
+        .map((item, index) => ({ ...item, uniqueId: index }))
+        .sort(() => Math.random() - 0.5);
+
+      const grid = document.getElementById('memoryGrid');
+      grid.innerHTML = '';
+
+      deck.forEach(cardData => {
+        const card = document.createElement('div');
+        card.className = 'memory-card h-14 sm:h-16';
+        card.dataset.techId = cardData.id;
+
+        card.innerHTML = `
+          <div class="memory-card-inner">
+            <!-- BACK FACE (Warm dark cover) -->
+            <div class="memory-back bg-warm-surface border border-warm-border hover:border-amber-500/60 flex flex-col items-center justify-center transition-all shadow-sm">
+              <i class="fa-solid fa-code text-amber-500/50 text-sm"></i>
+            </div>
+            <!-- FRONT FACE (Warm revealed card) -->
+            <div class="memory-front bg-warm-card border border-amber-500/70 flex flex-col items-center justify-center p-1 shadow-md">
+              <i class="${cardData.icon} ${cardData.color} text-lg mb-0.5"></i>
+              <span class="text-[9px] font-mono font-bold text-slate-200 tracking-tight leading-none">${cardData.name}</span>
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => handleCardClick(card));
+        grid.appendChild(card);
+      });
+    }
+
+    function handleCardClick(card) {
+      if (isBoardLocked) return;
+      if (card.classList.contains('flipped')) return;
+
+      card.classList.add('flipped');
+      flippedCards.push(card);
+
+      if (flippedCards.length === 2) {
+        movesCount++;
+        document.getElementById('gameMoves').textContent = `Mosse: ${movesCount}`;
+        checkPairMatch();
+      }
+    }
+
+    function checkPairMatch() {
+      const [card1, card2] = flippedCards;
+      const isMatch = card1.dataset.techId === card2.dataset.techId;
+
+      if (isMatch) {
+        matchedPairs++;
+        document.getElementById('gamePairs').textContent = `${matchedPairs}/6 Coppie`;
+        
+        card1.querySelector('.memory-front').classList.add('!border-emerald-400', 'bg-emerald-950/30');
+        card2.querySelector('.memory-front').classList.add('!border-emerald-400', 'bg-emerald-950/30');
+
+        flippedCards = [];
+
+        if (matchedPairs === 6) {
+          setTimeout(() => {
+            document.getElementById('victoryDetails').textContent = 
+              `Hai trovato tutte le 6 tecnologie del progetto Cloud Lab in ${movesCount} mosse!`;
+            const victoryEl = document.getElementById('victoryOverlay');
+            victoryEl.classList.remove('opacity-0', 'pointer-events-none');
+          }, 450);
+        }
+      } else {
+        isBoardLocked = true;
+        setTimeout(() => {
+          card1.classList.remove('flipped');
+          card2.classList.remove('flipped');
+          flippedCards = [];
+          isBoardLocked = false;
+        }, 850);
+      }
+    }
+
+    // --- 3. UTILITIES: TOAST & CLIPBOARD ---
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+
+    function copyToClipboard(text, successMsg) {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMsg);
+      } catch (err) {
+        showToast("Errore durante la copia");
+      }
+      document.body.removeChild(el);
+    }
+
+    window.onload = function() {
+      initMemoryGame();
+    };
+  </script>
+</body>
+</html>
